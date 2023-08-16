@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { Svelvet, Group, Node, Anchor } from 'svelvet';
-  import ValueNode from '$lib/microgard/ValueNode';
+  import type ValueNode from '$lib/microgard/ValueNode';
+  import { Node, type Connections } from 'svelvet';
+  export let node: ValueNode;
 
   type ConnectionMap = {
     [nodeId: string]: {
@@ -9,13 +10,6 @@
       level: number;
     };
   };
-
-  const a = new ValueNode({ data: 42, name: 'a' });
-  const b = new ValueNode({ data: 42, name: 'b' });
-  const c = a.mul(b);
-  const root = a.add(b).mul(c);
-  /* const e = a - b;
-    const f = a / b; */
 
   function getConnectionsMap(node: ValueNode): ConnectionMap {
     const map: ConnectionMap = {};
@@ -50,34 +44,8 @@
     walk(node, 0);
     return map;
   }
-
-  function nodesByLevel(nodes: Array<ValueNode>, map: ConnectionMap): Array<Array<ValueNode>> {
-    const levels: Array<Array<ValueNode>> = [];
-    nodes.forEach((node) => {
-      if (!levels[map[node.id].level]) {
-        levels[map[node.id].level] = [];
-      }
-      levels[map[node.id].level].push(node);
-    });
-    return levels;
-  }
-
-  $: connectionsMap = getConnectionsMap(root);
-  $: levels = nodesByLevel(root.nodes(), connectionsMap);
-  $: maxLevel = levels.length;
-
-  console.log(getConnectionsMap(root));
 </script>
 
-<Svelvet>
-  {#each levels as nodes, index}
-    {#each nodes as node, yIndex}
-      <Node
-        id={node.id}
-        label={node.name}
-        connections={connectionsMap[node.id].outputConnections}
-        position={{ x: (maxLevel - index) * 300, y: yIndex * 200 }}
-      />
-    {/each}
-  {/each}
-</Svelvet>
+{#if node}
+  <Node />
+{/if}
