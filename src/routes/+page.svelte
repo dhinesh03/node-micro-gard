@@ -1,83 +1,16 @@
 <script lang="ts">
-  import { Svelvet, Group, Node, Anchor } from 'svelvet';
+  import RenderExpression from '$lib/components/RenderExpression.svelte';
   import ValueNode from '$lib/microgard/ValueNode';
-
-  type ConnectionMap = {
-    [nodeId: string]: {
-      inputConnections: Array<string>;
-      outputConnections: Array<string>;
-      level: number;
-    };
-  };
 
   const a = new ValueNode({ data: 42, name: 'a' });
   const b = new ValueNode({ data: 42, name: 'b' });
+  const x = b.mul(b);
   const c = a.mul(b);
-  const root = a.add(b).mul(c);
+
+  const root = a.add(b).mul(c).add(x);
   /* const e = a - b;
     const f = a / b; */
-
-  function getConnectionsMap(node: ValueNode): ConnectionMap {
-    const map: ConnectionMap = {};
-    const walk = (node: ValueNode, level: number) => {
-      if (!map[node.id]) {
-        map[node.id] = {
-          inputConnections: [],
-          outputConnections: [],
-          level
-        };
-      }
-      map[node.id].level = Math.max(map[node.id].level, level);
-
-      if (node.children.length === 0) {
-        return;
-      }
-
-      node.children.forEach((childNode) => {
-        if (!map[childNode.id]) {
-          map[childNode.id] = {
-            inputConnections: [],
-            outputConnections: [],
-            level: level + 1
-          };
-        }
-        map[node.id].inputConnections.push(childNode.id);
-        map[childNode.id].outputConnections.push(node.id);
-        map[childNode.id].level = Math.max(map[childNode.id].level, level + 1);
-        walk(childNode, level + 1);
-      });
-    };
-    walk(node, 0);
-    return map;
-  }
-
-  function nodesByLevel(nodes: Array<ValueNode>, map: ConnectionMap): Array<Array<ValueNode>> {
-    const levels: Array<Array<ValueNode>> = [];
-    nodes.forEach((node) => {
-      if (!levels[map[node.id].level]) {
-        levels[map[node.id].level] = [];
-      }
-      levels[map[node.id].level].push(node);
-    });
-    return levels;
-  }
-
-  $: connectionsMap = getConnectionsMap(root);
-  $: levels = nodesByLevel(root.nodes(), connectionsMap);
-  $: maxLevel = levels.length;
-
-  console.log(getConnectionsMap(root));
 </script>
 
-<Svelvet>
-  {#each levels as nodes, index}
-    {#each nodes as node, yIndex}
-      <Node
-        id={node.id}
-        label={node.name}
-        connections={connectionsMap[node.id].outputConnections}
-        position={{ x: (maxLevel - index) * 300, y: yIndex * 200 }}
-      />
-    {/each}
-  {/each}
-</Svelvet>
+<RenderExpression expression={root} />
+```
