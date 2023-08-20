@@ -9,18 +9,22 @@ export default class ValueNode {
   // eslint-disable-next-line @typescript-eslint/no-empty-function
   private _backward = () => {};
 
-  constructor({ data, name = '', children = [] }: { data: number; name?: string; children?: Array<ValueNode> }) {
+  constructor(data: number, name = '', children: Array<ValueNode> = []) {
     this.data = data;
     this.children = children;
     this.name = name;
   }
 
-  add(other: ValueNode) {
-    const out = new ValueNode({
-      data: this.data + other.data,
-      name: `(${this.name} + ${other.name})`,
-      children: [this, other]
-    });
+  private _outValNode(input: ValueNode | number) {
+    if (typeof input === 'number') {
+      return new ValueNode(input, 'const');
+    }
+    return input;
+  }
+
+  add(input: ValueNode | number) {
+    const other = this._outValNode(input);
+    const out = new ValueNode(this.data + other.data, `(${this.name} + ${other.name})`, [this, other]);
     const _backward = () => {
       this.grad += 1.0 * out.grad;
       other.grad += 1.0 * out.grad;
@@ -29,12 +33,9 @@ export default class ValueNode {
     return out;
   }
 
-  mul(other: ValueNode) {
-    const out = new ValueNode({
-      data: this.data * other.data,
-      name: `(${this.name} * ${other.name})`,
-      children: [this, other]
-    });
+  mul(input: ValueNode | number) {
+    const other = this._outValNode(input);
+    const out = new ValueNode(this.data * other.data, `(${this.name} * ${other.name})`, [this, other]);
     const _backward = () => {
       /**
        * if c = a * b
@@ -68,13 +69,11 @@ export default class ValueNode {
     return out;
   }
 
-  pow(other: ValueNode) {
+  pow(val: number) {
     // other should be a constant
-    const out = new ValueNode({
-      data: Math.pow(this.data, other.data),
-      name: `(${this.name} ^ ${other.name})`,
-      children: [this, other]
-    });
+    const other = new ValueNode(val, 'const');
+
+    const out = new ValueNode(Math.pow(this.data, other.data), `(${this.name} ^ ${other.name})`, [this, other]);
     const _backward = () => {
       /**
        * where n is a constant exponent.
@@ -88,12 +87,8 @@ export default class ValueNode {
     return out;
   }
 
-  relu() {
-    const out = new ValueNode({
-      data: Math.max(0, this.data),
-      name: `relu(${this.name})`,
-      children: [this]
-    });
+  relu(name?: string) {
+    const out = new ValueNode(Math.max(0, this.data), name ? name : `relu(${this.name})`, [this]);
     const _backward = () => {
       /**
        * if f(x) = max(0, x)
@@ -107,12 +102,14 @@ export default class ValueNode {
     return out;
   }
 
-  sub(other: ValueNode) {
-    return this.add(other.mul(new ValueNode({ data: -1.0, name: 'const' })));
+  sub(input: ValueNode | number) {
+    const other = this._outValNode(input);
+    return this.add(other.mul(new ValueNode(-1.0, 'const')));
   }
 
-  div(other: ValueNode) {
-    return this.mul(other.pow(new ValueNode({ data: -1.0, name: 'const' })));
+  div(input: ValueNode | number) {
+    const other = this._outValNode(input);
+    return this.mul(other.pow(-1.0));
   }
 
   nodes() {
@@ -138,4 +135,10 @@ export default class ValueNode {
     this.grad = 1.0;
     topo.forEach((node) => node._backward());
   }
+
+  static sum = (nodes: Array<ValueNode>) => {
+    const total = nodes.reduce((acc, node) => acc.add(node), new ValueNode(0, 'const'));
+    total.name = '∑ (Wi * Xi ...+b)';
+    return total;
+  };
 }

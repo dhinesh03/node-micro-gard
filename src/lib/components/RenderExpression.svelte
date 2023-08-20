@@ -76,12 +76,12 @@
         <div class="node-wrapper">
           {#if connectionsMap[node.id].inputConnections.length}
             <div class="input-anchor">
-              <Anchor input direction="west" />
+              <Anchor input direction="west" locked />
             </div>
           {/if}
           {#if connectionsMap[node.id].outputConnections.length}
             <div class="output-anchor">
-              <Anchor output direction="east" />
+              <Anchor output direction="east" locked />
             </div>
           {/if}
           <Table {node} attributes={['data', 'grad']} />

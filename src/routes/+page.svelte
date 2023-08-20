@@ -1,13 +1,14 @@
 <script lang="ts">
   import RenderExpression from '$lib/components/RenderExpression.svelte';
+  import { MLP } from '$lib/microgard/Neuron';
   import ValueNode from '$lib/microgard/ValueNode';
 
-  const a = new ValueNode({ data: 42, name: 'a' });
-  const b = new ValueNode({ data: 42, name: 'b' });
-  const x = b.mul(b);
-  const c = a.mul(b);
+  const network = new MLP({ noOfInputs: 3, noOfOutputs: 1, hiddenLayers: [{ noOfNeurons: 4 }, { noOfNeurons: 4 }] });
+  const inputs = [3.0, -1, -2].map((x, i) => new ValueNode(x, `Input ${i + 1}`));
+  const outputs = network.predict(inputs);
+  const root = outputs[0];
+  root.backpropagation();
 
-  const root = a.add(b).mul(c).add(x);
   /* const e = a - b;
     const f = a / b; */
 </script>
