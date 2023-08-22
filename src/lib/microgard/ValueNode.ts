@@ -131,6 +131,10 @@ export default class ValueNode {
     const topo: Array<ValueNode> = this.nodes();
 
     topo.reverse();
+
+    // Zero the gradients
+    topo.forEach((node) => (node.grad = 0.0));
+
     // backpropagation
     this.grad = 1.0;
     topo.forEach((node) => node._backward());

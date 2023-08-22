@@ -29,6 +29,7 @@
 	},
 	"type": "module",
 	"dependencies": {
+		"plotly.js-dist": "^2.25.2",
 		"svelvet": "^8.1.0"
 	}
 }
