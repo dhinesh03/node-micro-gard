@@ -1,7 +1,7 @@
 import { MLP } from '$lib/microgard/Neuron';
 import ValueNode from '$lib/microgard/ValueNode';
 import { hingeLoss } from '$lib/microgard/loss';
-import type { DataPoint } from '$lib/types';
+import type { DataPoint, DataSet } from '$lib/types';
 import { json } from '@sveltejs/kit';
 
 function getRandom(min: number, max: number) {
@@ -14,6 +14,37 @@ function shuffle<I>(array: I[]): I[] {
     [array[i], array[j]] = [array[j], array[i]];
   }
   return array;
+}
+
+function arange(x_min: number, x_max: number, h: number) {
+  const n = Math.floor((x_max - x_min) / h) + 1;
+  return Array.from({ length: n }, (_, i) => x_min + i * h);
+}
+
+function reshape<T>(arr: T[], cols: number): T[][] {
+  const result: T[][] = [];
+  for (let i = 0; i < arr.length; i += cols) {
+    result.push(arr.slice(i, i + cols));
+  }
+  return result;
+}
+
+function meshgrid<T>(x: T[], y: T[]): [T[][], T[][]] {
+  const X: T[][] = [];
+  const Y: T[][] = [];
+
+  for (let i = 0; i < y.length; i++) {
+    const rowX: T[] = [];
+    const rowY: T[] = [];
+    for (let j = 0; j < x.length; j++) {
+      rowX.push(x[j]);
+      rowY.push(y[i]);
+    }
+    X.push(rowX);
+    Y.push(rowY);
+  }
+
+  return [X, Y];
 }
 
 function generateMoon(n_samples: number, noise = 0.05): DataSet {
@@ -49,36 +80,26 @@ function generateMoon(n_samples: number, noise = 0.05): DataSet {
   return { data, target };
 }
 
-function generateSpiral(n_samples: number, noise = 0.05): DataSet {
+function generateSpiral(n_samples: number, noise = 0.05, factor = 4): DataSet {
   const data: DataPoint[] = [];
   const target: number[] = [];
 
-  const n = n_samples / 2;
-  for (let i = 0; i < n; i++) {
-    /*s
-    let angle = getRandom(0, 4 * Math.PI);
-    let rad = angle + noise * getRandom(-1, 1);
+  for (let i = 0; i < n_samples / 2; i++) {
+    const r = (i / n_samples) * factor;
+    const t = ((1.75 * i) / n_samples) * 2 * Math.PI;
 
-    let x = rad * Math.sin(angle);
-    let y_val = rad * Math.cos(angle);
-    
-    X.push([x, y_val]);
-    y.push(0);
-
-    x = -rad * Math.sin(angle);
-    y_val = -rad * Math.cos(angle);
-    
-    X.push([x, y_val]);
-    y.push(1); */
-
-    const t = (1.25 * i) / n_samples + (Math.random() * noise * 2 - noise);
-    const x = (1 + t) * Math.cos(t);
-    const y = (1 + t) * Math.sin(t);
+    // Spiral 1 (clockwise)
+    let x = r * Math.sin(t) + (Math.random() * 2 - 1) * noise;
+    let y = r * Math.cos(t) + (Math.random() * 2 - 1) * noise;
 
     data.push([x, y]);
     target.push(-1);
 
-    data.push([-x, -y]);
+    // Spiral 2 (counterclockwise)
+    x = -r * Math.sin(t) + (Math.random() * 2 - 1) * noise;
+    y = -r * Math.cos(t) + (Math.random() * 2 - 1) * noise;
+
+    data.push([x, y]);
     target.push(1);
   }
 
@@ -89,22 +110,22 @@ function generateCircle(n_samples: number, noise = 0.05, factor = 0.5): DataSet 
   const data: DataPoint[] = [];
   const target: number[] = [];
 
-  for (let i = 0; i < n_samples / 2; i++) {
-    const angle = getRandom(0, 2 * Math.PI);
-    let rad = getRandom(0.3 * factor, 1.0);
+  for (let i = 0; i < n_samples; i++) {
+    // Choose a random angle
+    const t = 2 * Math.PI * Math.random();
 
-    let x = rad * Math.cos(angle) + noise * getRandom(-1, 1);
-    let y = rad * Math.sin(angle) + noise * getRandom(-1, 1);
-    2;
+    // Randomly choose the label (0 or 1)
+    const label = i < n_samples / 2 ? 0 : 1;
+
+    // Calculate radius - one circle has a smaller radius, the other a larger one
+    const r = label === 0 ? 1 : 1 + factor;
+
+    // Calculate coordinates with optional noise
+    const x = r * Math.sin(t) + (Math.random() * 2 - 1) * noise;
+    const y = r * Math.cos(t) + (Math.random() * 2 - 1) * noise;
 
     data.push([x, y]);
-    target.push(-1);
-
-    rad = getRandom(0, 0.3 * factor);
-    x = rad * Math.cos(angle) + noise * getRandom(-1, 1);
-    y = rad * Math.sin(angle) + noise * getRandom(-1, 1);
-    data.push([x, y]);
-    target.push(1);
+    target.push(label === 0 ? -1 : 1);
   }
 
   return { data, target };
@@ -124,49 +145,88 @@ export async function POST({ request }) {
 }
 
 export async function GET({ url }) {
-  const ac = new AbortController();
-  let interval: number;
-  const stream = new ReadableStream({
-    start(controller) {
-      const model = new MLP({
-        noOfInputs: 2,
-        noOfOutputs: 1,
-        hiddenLayers: [{ noOfNeurons: 16 }, { noOfNeurons: 16 }]
-      });
-      const moonData = generateMoon(100, 0.01);
-      const data = moonData.data.map((point) => point.map((val) => new ValueNode(val, 'input')));
-      const target = moonData.target.map((val) => new ValueNode(val, 'target'));
-      const tp = model.getTrainableParams();
+  try {
+    //const ac = new AbortController();
+    let interval: number;
+    const stream = new ReadableStream({
+      start(controller) {
+        const model = new MLP({
+          noOfInputs: 2,
+          noOfOutputs: 1,
+          hiddenLayers: [{ noOfNeurons: 24 }, { noOfNeurons: 24 }]
+        });
+        const moonData = generateCircle(100, 0.1);
+        const data = moonData.data.map((point) => point.map((val) => new ValueNode(val, 'input')));
+        const target = moonData.target.map((val) => new ValueNode(val, 'target'));
+        const tp = model.getTrainableParams();
 
-      let step = 0;
-      interval = setInterval(() => {
-        const predictions = data.map((point) => model.predict(point)).flat();
-        const { totalLoss, accuracy } = hingeLoss(predictions, target, tp);
-        controller.enqueue(`step ${step} loss ${totalLoss.data} accuracy ${accuracy * 100}%`);
+        const xMin = moonData.data.reduce((min, point) => Math.min(min, point[0]), 0) - 1;
+        const xMax = moonData.data.reduce((max, point) => Math.max(max, point[0]), 0) + 1;
+        const yMin = moonData.data.reduce((min, point) => Math.min(min, point[1]), 0) - 1;
+        const yMax = moonData.data.reduce((max, point) => Math.max(max, point[1]), 0) + 1;
 
-        // backpropagate
-        totalLoss.backpropagation();
+        const xArrange = arange(xMin, xMax, 0.25);
+        const yArrange = arange(yMin, yMax, 0.25);
+        const [xSimulate, ySimulate] = meshgrid(xArrange, yArrange);
+        const xMesh = xSimulate.flat();
+        const yMesh = ySimulate.flat();
+        const mesh = xMesh.map((x, i) => [x, yMesh[i]]);
+        const simulatedData = mesh.map((point) => point.map((val) => new ValueNode(val, 'input')));
 
-        // update weights
-        const learningRate = 1 - (0.9 * step) / 1000;
-        for (const param of tp) {
-          param.data -= learningRate * param.grad;
-          param.grad = 0;
-        }
+        let step = 0;
+        interval = setInterval(() => {
+          if (step === 0) {
+            controller.enqueue(JSON.stringify({ type: 'init', data: moonData, simulatedData: [xArrange, yArrange] }));
+          } else {
+            const forward = data.map((point) => model.predict(point)).flat();
+            const { totalLoss, accuracy } = hingeLoss(forward, target, tp);
 
-        step++;
-      }, 1000);
-    },
-    cancel() {
-      console.log('cancel');
-      interval && clearInterval(interval);
-      ac.abort();
-    }
-  });
+            const predictions = reshape(
+              simulatedData
+                .map((point) => model.predict(point))
+                .flat()
+                .map((val) => (val.data > 0 ? 1 : 0)),
+              xArrange.length
+            );
 
-  return new Response(stream, {
-    headers: {
-      'content-type': 'text/event-stream'
-    }
-  });
+            controller.enqueue(
+              JSON.stringify({
+                type: 'step',
+                predictions,
+                training: `Step ${step} loss ${totalLoss.data} accuracy ${accuracy * 100}%`
+              })
+            );
+
+            // backpropagate
+            totalLoss.backpropagation();
+
+            // update weights
+            const learningRate = 1 - (0.9 * step) / 1000;
+            for (const param of tp) {
+              param.data -= learningRate * param.grad;
+            }
+          }
+
+          step++;
+          if (step > 100) {
+            interval && clearInterval(interval);
+          }
+        }, 100);
+      },
+      cancel() {
+        console.log('cancel');
+        interval && clearInterval(interval);
+        //ac.abort();
+      }
+    });
+
+    return new Response(stream, {
+      headers: {
+        'content-type': 'text/event-stream'
+      }
+    });
+  } catch (e) {
+    console.error(e);
+    return json(e);
+  }
 }
