@@ -131,7 +131,7 @@ function generateCircle(n_samples: number, noise = 0.05, factor = 0.5): DataSet 
   return { data, target };
 }
 
-export async function POST({ request }) {
+/* export async function POST({ request }) {
   const { samples, noise, dataset } = await request.json();
   if (dataset === 'moon') {
     return json(generateMoon(samples, noise));
@@ -142,10 +142,11 @@ export async function POST({ request }) {
   } else {
     return json({ error: 'Invalid dataset' });
   }
-}
+} */
 
-export async function GET({ url }) {
+export async function POST({ request }) {
   try {
+    const { samples, noise, dataset } = await request.json();
     //const ac = new AbortController();
     let interval: number;
     const stream = new ReadableStream({
@@ -153,9 +154,18 @@ export async function GET({ url }) {
         const model = new MLP({
           noOfInputs: 2,
           noOfOutputs: 1,
-          hiddenLayers: [{ noOfNeurons: 24 }, { noOfNeurons: 24 }]
+          hiddenLayers: [{ noOfNeurons: 18 }, { noOfNeurons: 18 }]
         });
-        const moonData = generateCircle(100, 0.1);
+        let moonData: DataSet;
+        if (dataset === 'moon') {
+          moonData = generateMoon(samples, noise);
+        } else if (dataset === 'spiral') {
+          moonData = generateSpiral(samples, noise);
+        } else if (dataset === 'circle') {
+          moonData = generateCircle(samples, noise);
+        } else {
+          return { error: 'Invalid dataset' };
+        }
         const data = moonData.data.map((point) => point.map((val) => new ValueNode(val, 'input')));
         const target = moonData.target.map((val) => new ValueNode(val, 'target'));
         const tp = model.getTrainableParams();

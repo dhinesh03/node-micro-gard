@@ -8,9 +8,6 @@
   const outputs = network.predict(inputs);
   const root = outputs[0];
   root.backpropagation();
-
-  /* const e = a - b;
-    const f = a / b; */
 </script>
 
 <RenderExpression expression={root} />

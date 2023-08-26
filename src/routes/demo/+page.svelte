@@ -9,6 +9,10 @@
   let simulatedData: TwoArrayTuple = [[], []];
   let predictions: Array<Array<number>> = [];
   let chartData: any;
+  let dataset = 'moon';
+  let noise = 0.1;
+  let samples = 100;
+  let isTraining = false;
 
   function drawChart(data: DataPoint[], target: number[]) {
     const actualTrace: PlotlyData = {
@@ -38,45 +42,46 @@
     };
   }
 
-  async function fetchDemoData() {
-    const response = await fetch('/demo', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ samples: 100, noise: 0.5, dataset: 'moon' })
-    });
-    const { data, target } = await response.json();
-    drawChart(data, target);
-  }
-
-  async function getStream() {
-    if (streamAbortController) streamAbortController.abort();
-    streamAbortController = new AbortController();
-    const signal = streamAbortController.signal;
-    const response = await fetch('/demo', {
-      method: 'GET',
-      signal
-    });
-    console.log('resp', response);
-    const reader = response?.body?.pipeThrough(new TextDecoderStream()).getReader();
-    if (reader) {
-      // eslint-disable-next-line no-constant-condition
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        const res = JSON.parse(value);
-        if (res.type === 'init') {
-          data = res.data;
-          simulatedData = res.simulatedData;
-          drawChart(data.data, data.target);
-        } else {
-          predictions = res.predictions;
-          result = [res.training, ...result];
-          drawChart(data.data, data.target);
-          //updateChartColor();
+  async function handleSubmit() {
+    try {
+      if (streamAbortController) {
+        streamAbortController.abort();
+      }
+      streamAbortController = new AbortController();
+      const signal = streamAbortController.signal;
+      const response = await fetch('/demo', {
+        method: 'POST',
+        body: JSON.stringify({ samples, noise, dataset }),
+        signal
+      });
+      console.log('resp', response);
+      const reader = response?.body?.pipeThrough(new TextDecoderStream()).getReader();
+      if (reader) {
+        isTraining = true;
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) {
+            console.log('Stream complete');
+            isTraining = false;
+            break;
+          }
+          const res = JSON.parse(value);
+          if (res.type === 'init') {
+            data = res.data;
+            simulatedData = res.simulatedData;
+            drawChart(data.data, data.target);
+          } else {
+            predictions = res.predictions;
+            result = [res.training, ...result];
+            drawChart(data.data, data.target);
+          }
         }
       }
+    } catch (e) {
+      console.log('error', e);
+    } finally {
+      isTraining = false;
     }
   }
 </script>
@@ -85,8 +90,23 @@
   <div class="chart">
     <Plotly plotParams={chartData} />
   </div>
-  <button on:click={fetchDemoData}>Fetch demo data</button>
-  <button on:click={getStream}>Stream data</button>
+  <form on:submit|preventDefault={handleSubmit}>
+    <div class="container">
+      <select bind:value={dataset}>
+        <option value="moon">Moon</option>
+        <option value="spiral">Spiral</option>
+        <option value="circle">Circle</option>
+      </select>
+      <input type="number" min={10} max={1000} bind:value={samples} />
+      <input type="number" min={0} max={1} step={0.1} bind:value={noise} />
+
+      {#if isTraining}
+        <button on:click={() => streamAbortController.abort()}>Stop</button>
+      {:else}
+        <button type="submit">Train</button>
+      {/if}
+    </div>
+  </form>
 
   {#if result.length}
     <h2>Result</h2>
@@ -108,5 +128,21 @@
     }
     height: 300px;
     overflow-y: scroll;
+  }
+  .chart {
+    width: 500px;
+    height: 500px;
+  }
+  .container {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: start;
+    select {
+      width: 100px;
+    }
+    input {
+      width: 50px;
+    }
   }
 </style>
