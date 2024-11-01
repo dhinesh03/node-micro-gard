@@ -232,10 +232,10 @@ export async function POST({ request }) {
     });
 
     return new Response(stream, {
-      headers: { 'Content-Type': 'text/html; charset=utf-8' }
+      headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' }
     });
   } catch (e) {
     console.error(e);
-    return json(e);
+    return new Response(JSON.stringify({ error: e.message }), { status: 500 });
   }
 }
