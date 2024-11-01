@@ -185,8 +185,13 @@ export async function POST({ request }) {
 
         let step = 0;
         interval = setInterval(() => {
+          let message;
           if (step === 0) {
-            controller.enqueue(JSON.stringify({ type: 'init', data: moonData, simulatedData: [xArrange, yArrange] }));
+            message = {
+              type: 'init',
+              data: moonData,
+              simulatedData: [xArrange, yArrange]
+            };
           } else {
             const forward = data.map((point) => model.predict(point)).flat();
             const { totalLoss, accuracy } = hingeLoss(forward, target, tp);
@@ -199,13 +204,11 @@ export async function POST({ request }) {
               xArrange.length
             );
 
-            controller.enqueue(
-              JSON.stringify({
-                type: 'step',
-                predictions,
-                training: `Step ${step} loss ${totalLoss.data} accuracy ${accuracy * 100}%`
-              })
-            );
+            message = {
+              type: 'step',
+              predictions,
+              training: `Step ${step} loss ${totalLoss.data} accuracy ${accuracy * 100}%`
+            };
 
             // backpropagate
             totalLoss.backpropagation();
@@ -216,6 +219,8 @@ export async function POST({ request }) {
               param.data -= learningRate * param.grad;
             }
           }
+          const encodedMessage = new TextEncoder().encode(JSON.stringify(message));
+          controller.enqueue(encodedMessage);
 
           step++;
           if (step > 100) {
