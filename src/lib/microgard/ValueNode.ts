@@ -79,7 +79,7 @@ export default class ValueNode {
        * where n is a constant exponent.
        * if f(x) = x ^ n
        * calculate the gradient
-       *Power Rule: d/dx(x^n) = n * x^(n-1)
+       * Power Rule: d/dx(x^n) = n * x^(n-1)
        */
       this.grad += other.data * Math.pow(this.data, other.data - 1) * out.grad;
     };

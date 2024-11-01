@@ -4,9 +4,9 @@ import { hingeLoss } from '$lib/microgard/loss';
 import type { DataPoint, DataSet } from '$lib/types';
 import { json } from '@sveltejs/kit';
 
-function getRandom(min: number, max: number) {
-  return Math.random() * (max - min) + min;
-}
+export const config = {
+  runtime: 'edge'
+};
 
 function shuffle<I>(array: I[]): I[] {
   for (let i = array.length - 1; i > 0; i--) {
@@ -220,6 +220,7 @@ export async function POST({ request }) {
           step++;
           if (step > 100) {
             interval && clearInterval(interval);
+            controller.close();
           }
         }, 100);
       },
