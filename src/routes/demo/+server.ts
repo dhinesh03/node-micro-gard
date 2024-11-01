@@ -232,9 +232,7 @@ export async function POST({ request }) {
     });
 
     return new Response(stream, {
-      headers: {
-        'content-type': 'text/event-stream'
-      }
+      headers: { 'Content-Type': 'text/html; charset=utf-8' }
     });
   } catch (e) {
     console.error(e);
